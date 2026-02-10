@@ -477,46 +477,61 @@ function PaymentStep({ data, setData, onNext, onBack }) {
   var handlePayment = function() {
     setData(function(p) { return Object.assign({}, p, { _processing: true }); });
 
-    // Submit form data to Formspree
+    // FIX: Open Stripe IMMEDIATELY on click (before async) to avoid popup blocker
+    var stripeUrl = STRIPE_PAYMENT_LINK + "?prefilled_email=" + encodeURIComponent(data.email || "");
+    var stripeWindow = window.open(stripeUrl, "_blank");
+    var popupBlocked = !stripeWindow || stripeWindow.closed;
+
+    // FIX: Map symptom IDs to readable labels
+    var allSymptoms = data.sex === "Female" ? SYMPTOMS_WOMEN : SYMPTOMS_MEN;
+    var symptomLabels = (data.symptoms || []).map(function(id) {
+      var match = allSymptoms.find(function(s) { return s.id === id; });
+      return match ? match.label : id;
+    });
+
     var submitData = {
       _subject: "New NDM Intake: " + (data.firstName || "") + " " + (data.lastName || ""),
-      name: (data.firstName || "") + " " + (data.lastName || ""),
-      email: data.email || "",
-      phone: data.phone || "",
-      dob: data.dob || "",
-      sex: data.sex || "",
-      address: (data.address || "") + ", " + (data.city || "") + ", " + (data.state || "") + " " + (data.zip || ""),
-      contactMethod: data.contactMethod || "",
-      referralSource: data.referralSource || "",
-      symptoms: (data.symptoms || []).join(", "),
-      symptomDuration: data.symptomDuration || "",
-      symptomNotes: data.symptomNotes || "",
-      allergies: data.hasAllergies === "Yes" ? (data.allergies || "Yes - not specified") : "None",
-      conditions: (data.conditions || []).join(", ") || "None selected",
-      medications: data.medications || "None",
-      surgeries: data.surgeries || "None",
-      familyHistory: data.familyHistory || "None",
-      pcpName: data.pcpName || "Not provided",
-      pcpPhone: data.pcpPhone || "Not provided",
-      tmaAgreed: data.tmaAgreed ? "Yes - signed as: " + (data.signatureText || "") : "No",
-      paymentStatus: "PENDING — Redirected to Stripe",
+      "01_Name": (data.firstName || "") + " " + (data.lastName || ""),
+      "02_Email": data.email || "",
+      "03_Phone": data.phone || "",
+      "04_DOB": data.dob || "",
+      "05_Sex": data.sex || "",
+      "06_Address": (data.address || "") + ", " + (data.city || "") + ", " + (data.state || "") + " " + (data.zip || ""),
+      "07_Preferred_Contact": data.contactMethod || "",
+      "08_Referral_Source": data.referralSource || "",
+      "09_Symptoms": symptomLabels.join(", "),
+      "10_Symptom_Duration": data.symptomDuration || "",
+      "11_Symptom_Notes": data.symptomNotes || "None",
+      "12_Allergies": data.hasAllergies === "Yes" ? (data.allergies || "Yes - not specified") : "None",
+      "13_Conditions": (data.conditions || []).join(", ") || "None selected",
+      "14_Medications": data.medications || "None",
+      "15_Surgeries": data.surgeries || "None",
+      "16_Family_History": data.familyHistory || "None",
+      "17_PCP_Name": data.pcpName || "Not provided",
+      "18_PCP_Phone": data.pcpPhone || "Not provided",
+      "19_TMA_Signed": data.tmaAgreed ? "YES - signed as: " + (data.signatureText || "") : "No",
+      "20_Payment": "PENDING - Redirected to Stripe",
+      "21_ID_Status": "Pending upload on next step",
     };
 
+    // FIX: Check response.ok — this is why emails were not sending
     fetch(FORMSPREE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify(submitData),
+    }).then(function(response) {
+      if (!response.ok) {
+        throw new Error("Formspree HTTP " + response.status);
+      }
+      return response.json();
     }).then(function() {
-      // Redirect to Stripe Payment Link with prefilled email
-      var stripeUrl = STRIPE_PAYMENT_LINK + "?prefilled_email=" + encodeURIComponent(data.email || "");
-      window.open(stripeUrl, "_blank");
+      if (popupBlocked) { window.location.href = stripeUrl; return; }
       setData(function(p) { return Object.assign({}, p, { _processing: false, paymentComplete: true, paymentDate: new Date().toISOString() }); });
       onNext();
     }).catch(function(err) {
       console.error("Formspree error:", err);
-      // Still proceed even if Formspree fails
-      var stripeUrl = STRIPE_PAYMENT_LINK + "?prefilled_email=" + encodeURIComponent(data.email || "");
-      window.open(stripeUrl, "_blank");
+      alert("There was an issue submitting your information. Please contact Anthony at (561) 427-9635 if the problem persists.");
+      if (popupBlocked) { window.location.href = stripeUrl; return; }
       setData(function(p) { return Object.assign({}, p, { _processing: false, paymentComplete: true }); });
       onNext();
     });
@@ -626,7 +641,6 @@ function ConfirmationStep({ data, setData }) {
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", animation: "ndmFadeIn 0.6s ease" }}>
-      <ProgressBar step={7} />
       <div style={{ textAlign: "center", marginBottom: 28 }}>
         <div style={{ width: 70, height: 70, borderRadius: "50%", background: C.sage, margin: "0 auto 18px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 20px rgba(91,138,114,0.35)" }}>
           <span style={{ fontSize: 34, color: "#fff" }}>✓</span>
@@ -761,7 +775,22 @@ export default function NDMIntake() {
   var setData = _d[1];
 
   var handleSubmit = function() {
-    console.log("FULL SUBMISSION:", JSON.stringify(data, null, 2));
+    // Send follow-up notification with ID upload status
+    var idStatus = data.idBypassed ? "Bypassed — will provide separately" : (data.idPreview ? "Uploaded" : "Not provided");
+    fetch(FORMSPREE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        _subject: "NDM Intake Complete: " + (data.firstName || "") + " " + (data.lastName || ""),
+        "Patient": (data.firstName || "") + " " + (data.lastName || ""),
+        "Email": data.email || "",
+        "Phone": data.phone || "",
+        "ID_Upload_Status": idStatus,
+        "Status": "INTAKE COMPLETE — Awaiting Stripe payment confirmation",
+      }),
+    }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function() { console.log("Follow-up notification sent"); })
+      .catch(function(e) { console.error("Follow-up notification failed:", e); });
     setStep(7);
   };
 
