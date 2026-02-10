@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 
-// ============ CONFIGURATION — UPDATE THESE ============
-// 1. Create Formspree form at formspree.io → get your form ID
-// 2. Create Stripe Payment Link at stripe.com/dashboard → Payment Links
-var FORMSPREE_URL = "https://formspree.io/f/mykdkkja";
+// ============ CONFIGURATION ============
+// Stripe Payment Link — replace with live link when ready
 var STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_28EdR2gm1bhP01R4WM3gk00";
+// API route for form submission (generates PDF + sends email)
+var SUBMIT_URL = "/api/submit-intake";
 
 // ============ CORRECT NDM COLOR SCHEME (from nightdaymedical.com) ============
 const C = {
@@ -477,60 +477,29 @@ function PaymentStep({ data, setData, onNext, onBack }) {
   var handlePayment = function() {
     setData(function(p) { return Object.assign({}, p, { _processing: true }); });
 
-    // FIX: Open Stripe IMMEDIATELY on click (before async) to avoid popup blocker
+    // Open Stripe IMMEDIATELY on click (before async) to avoid popup blocker
     var stripeUrl = STRIPE_PAYMENT_LINK + "?prefilled_email=" + encodeURIComponent(data.email || "");
     var stripeWindow = window.open(stripeUrl, "_blank");
     var popupBlocked = !stripeWindow || stripeWindow.closed;
 
-    // FIX: Map symptom IDs to readable labels
-    var allSymptoms = data.sex === "Female" ? SYMPTOMS_WOMEN : SYMPTOMS_MEN;
-    var symptomLabels = (data.symptoms || []).map(function(id) {
-      var match = allSymptoms.find(function(s) { return s.id === id; });
-      return match ? match.label : id;
-    });
-
-    var submitData = {
-      _subject: "New NDM Intake: " + (data.firstName || "") + " " + (data.lastName || ""),
-      "01_Name": (data.firstName || "") + " " + (data.lastName || ""),
-      "02_Email": data.email || "",
-      "03_Phone": data.phone || "",
-      "04_DOB": data.dob || "",
-      "05_Sex": data.sex || "",
-      "06_Address": (data.address || "") + ", " + (data.city || "") + ", " + (data.state || "") + " " + (data.zip || ""),
-      "07_Preferred_Contact": data.contactMethod || "",
-      "08_Referral_Source": data.referralSource || "",
-      "09_Symptoms": symptomLabels.join(", "),
-      "10_Symptom_Duration": data.symptomDuration || "",
-      "11_Symptom_Notes": data.symptomNotes || "None",
-      "12_Allergies": data.hasAllergies === "Yes" ? (data.allergies || "Yes - not specified") : "None",
-      "13_Conditions": (data.conditions || []).join(", ") || "None selected",
-      "14_Medications": data.medications || "None",
-      "15_Surgeries": data.surgeries || "None",
-      "16_Family_History": data.familyHistory || "None",
-      "17_PCP_Name": data.pcpName || "Not provided",
-      "18_PCP_Phone": data.pcpPhone || "Not provided",
-      "19_TMA_Signed": data.tmaAgreed ? "YES - signed as: " + (data.signatureText || "") : "No",
-      "20_Payment": "PENDING - Redirected to Stripe",
-      "21_ID_Status": "Pending upload on next step",
-    };
-
-    // FIX: Check response.ok — this is why emails were not sending
-    fetch(FORMSPREE_URL, {
+    // Send ALL raw form data to our API route — it generates the PDF + email
+    fetch(SUBMIT_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(submitData),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
     }).then(function(response) {
       if (!response.ok) {
-        throw new Error("Formspree HTTP " + response.status);
+        return response.json().then(function(err) { throw new Error(err.details || "Server error " + response.status); });
       }
       return response.json();
-    }).then(function() {
+    }).then(function(result) {
+      console.log("Intake submitted successfully:", result);
       if (popupBlocked) { window.location.href = stripeUrl; return; }
       setData(function(p) { return Object.assign({}, p, { _processing: false, paymentComplete: true, paymentDate: new Date().toISOString() }); });
       onNext();
     }).catch(function(err) {
-      console.error("Formspree error:", err);
-      alert("There was an issue submitting your information. Please contact Anthony at (561) 427-9635 if the problem persists.");
+      console.error("Submission error:", err);
+      alert("There was an issue submitting your information. Your payment page should still be open. Please contact Anthony at (561) 427-9635 if the problem persists.");
       if (popupBlocked) { window.location.href = stripeUrl; return; }
       setData(function(p) { return Object.assign({}, p, { _processing: false, paymentComplete: true }); });
       onNext();
@@ -687,7 +656,10 @@ function ConfirmationStep({ data, setData }) {
                 <p style={{ fontSize: 12, color: C.gray600, margin: 0, fontFamily: "'Lato', sans-serif", lineHeight: 1.5 }}>Your clinical advisor Anthony will reach out to coordinate scheduling and provide location details.</p>
               </div>
             ) : (
-              <a href={labcorpUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", padding: "10px 20px", background: C.cream, border: "1px solid " + C.gray200, borderRadius: 6, color: C.charcoal, fontSize: 13, fontWeight: 600, textDecoration: "none", fontFamily: "'Lato', sans-serif" }}>🔍 Find a Labcorp Near {data.zip || "You"} →</a>
+              <div>
+                <a href={labcorpUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", padding: "10px 20px", background: C.cream, border: "1px solid " + C.gray200, borderRadius: 6, color: C.charcoal, fontSize: 13, fontWeight: 600, textDecoration: "none", fontFamily: "'Lato', sans-serif" }}>🔍 Find a Labcorp Near {data.zip || "You"} →</a>
+                <p style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif", marginTop: 8, fontStyle: "italic" }}>Enter your zip code and select "Routine Lab Work" when booking your appointment.</p>
+              </div>
             )}
           </div>
         </div>
@@ -776,21 +748,14 @@ export default function NDMIntake() {
 
   var handleSubmit = function() {
     // Send follow-up notification with ID upload status
-    var idStatus = data.idBypassed ? "Bypassed — will provide separately" : (data.idPreview ? "Uploaded" : "Not provided");
-    fetch(FORMSPREE_URL, {
+    var updatedData = Object.assign({}, data, { _finalSubmission: true });
+    fetch(SUBMIT_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({
-        _subject: "NDM Intake Complete: " + (data.firstName || "") + " " + (data.lastName || ""),
-        "Patient": (data.firstName || "") + " " + (data.lastName || ""),
-        "Email": data.email || "",
-        "Phone": data.phone || "",
-        "ID_Upload_Status": idStatus,
-        "Status": "INTAKE COMPLETE — Awaiting Stripe payment confirmation",
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedData),
     }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function() { console.log("Follow-up notification sent"); })
-      .catch(function(e) { console.error("Follow-up notification failed:", e); });
+      .then(function() { console.log("Final submission sent"); })
+      .catch(function(e) { console.error("Final submission failed:", e); });
     setStep(7);
   };
 
