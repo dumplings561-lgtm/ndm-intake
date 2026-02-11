@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 // ============ CONFIGURATION ============
 var STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_28EdR2gm1bhP01R4WM3gk00";
 var SUBMIT_URL = "/api/submit-intake";
+var STORAGE_KEY = "ndm_intake_data";
+var STORAGE_STEP_KEY = "ndm_intake_step";
 
 // ============ NDM COLOR SCHEME ============
 const C = {
@@ -83,6 +85,37 @@ const TMA_TEXT = [
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 const NY_STATES = ["NY"];
 const TOTAL_STEPS = 7;
+
+// ============ IMAGE PROCESSING UTILITY ============
+function processImage(file, maxDim, quality, callback) {
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement("canvas");
+      var w = img.width;
+      var h = img.height;
+      // Scale down if needed
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      // Drawing to canvas auto-corrects EXIF orientation in modern browsers
+      ctx.drawImage(img, 0, 0, w, h);
+      var dataUrl = canvas.toDataURL("image/jpeg", quality || 0.85);
+      callback(dataUrl);
+    };
+    img.onerror = function() {
+      // Fallback: use raw data URL
+      callback(ev.target.result);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
 
 // ============ SHARED COMPONENTS ============
 function ProgressBar({ step }) {
@@ -260,27 +293,10 @@ function WelcomeStep({ onNext }) {
   );
 }
 
-// ============ STEP 1: BASIC INFO ============
+// ============ STEP 1: BASIC INFO (age restriction removed) ============
 function BasicInfoStep({ data, setData, onNext, onBack }) {
   var u = function(k, v) { setData(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); };
   var canProceed = data.firstName && data.lastName && data.email && data.phone && data.dob && data.sex;
-
-  var getAge = function(dob) {
-    if (!dob || dob.length < 8) return null;
-    var parts = dob.includes("/") ? dob.split("/") : dob.split("-");
-    var d;
-    if (parts.length === 3) {
-      d = parts[0].length === 4 ? new Date(parts[0], parts[1] - 1, parts[2]) : new Date(parts[2], parts[0] - 1, parts[1]);
-    } else { d = new Date(dob); }
-    if (isNaN(d.getTime())) return null;
-    var today = new Date();
-    var age = today.getFullYear() - d.getFullYear();
-    var m = today.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
-    return age;
-  };
-  var age = getAge(data.dob);
-  var tooYoung = age !== null && age < 30;
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
@@ -321,9 +337,8 @@ function BasicInfoStep({ data, setData, onNext, onBack }) {
           <InputField label="Preferred Contact" type="select" value={data.contactMethod || ""} onChange={function(v) { u("contactMethod", v); }} options={["Phone Call", "Text Message", "Email"]} half />
           <InputField label="How did you hear about us?" value={data.referralSource || ""} onChange={function(v) { u("referralSource", v); }} placeholder="Referral, online search, etc." />
         </div>
-        {tooYoung && <div style={{ marginTop: 14, padding: 14, background: "#FFF5F5", border: "1px solid #FED7D7", borderRadius: 8, color: C.red, fontSize: 13, fontFamily: "'Lato', sans-serif" }}>Our program requires patients to be 30 years of age or older.</div>}
       </Card>
-      <NavButtons onBack={onBack} onNext={onNext} disabled={!canProceed || tooYoung} />
+      <NavButtons onBack={onBack} onNext={onNext} disabled={!canProceed} />
     </div>
   );
 }
@@ -410,12 +425,12 @@ function MedicalHistoryStep({ data, setData, onNext, onBack }) {
           <InputField label="PCP Phone" value={data.pcpPhone || ""} onChange={function(v) { u("pcpPhone", v); }} half placeholder="Phone" />
         </div>
       </Card>
-      <NavButtons onBack={onBack} onNext={onNext} />
+       <NavButtons onBack={onBack} onNext={onNext} />
     </div>
   );
 }
 
-// ============ STEP 4: ID UPLOAD (moved up before TMA) ============
+// ============ STEP 4: ID UPLOAD (with image processing) ============
 function IDUploadStep({ data, setData, onNext, onBack }) {
   var u = function(k, v) { setData(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); };
   var bypass = data.idBypassed || false;
@@ -423,9 +438,10 @@ function IDUploadStep({ data, setData, onNext, onBack }) {
 
   function handleIDUpload(f) {
     if (f.type.startsWith("image/")) {
-      var reader = new FileReader();
-      reader.onload = function(ev) { u("idPreview", ev.target.result); };
-      reader.readAsDataURL(f);
+      // Process image: resize, correct orientation, compress
+      processImage(f, 1200, 0.85, function(dataUrl) {
+        u("idPreview", dataUrl);
+      });
     } else {
       u("idPreview", f.name);
     }
@@ -468,47 +484,40 @@ function TMAStep({ data, setData, onNext, onBack }) {
   var canvasRef = useRef(null);
   var isDrawingRef = useRef(false);
   var hasDrawnRef = useRef(false);
-  var [hasSigned, setHasSigned] = useState(!!data.signatureDataUrl);
+  var _hs = useState(!!data.signatureDataUrl);
+  var hasSigned = _hs[0];
+  var setHasSigned = _hs[1];
 
-  // Initialize canvas
   useEffect(function() {
     if (!agreed) return;
     var canvas = canvasRef.current;
     if (!canvas) return;
+
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = 240;
     var ctx = canvas.getContext("2d");
+    ctx.scale(2, 2);
 
-    // Set canvas size
-    var rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = 120;
-
-    // Draw signature line
     ctx.strokeStyle = C.gray200;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(20, 95);
-    ctx.lineTo(canvas.width - 20, 95);
+    ctx.lineTo(rect.width - 20, 95);
     ctx.stroke();
 
-    // If we already have a signature, redraw it
     if (data.signatureDataUrl) {
       var img = new Image();
-      img.onload = function() { ctx.drawImage(img, 0, 0); };
+      img.onload = function() { ctx.drawImage(img, 0, 0, rect.width, 120); };
       img.src = data.signatureDataUrl;
       hasDrawnRef.current = true;
     }
 
-    // Drawing functions
     function getPos(e) {
       var r = canvas.getBoundingClientRect();
       var clientX, clientY;
-      if (e.touches) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-      }
+      if (e.touches) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+      else { clientX = e.clientX; clientY = e.clientY; }
       return { x: clientX - r.left, y: clientY - r.top };
     }
 
@@ -533,10 +542,9 @@ function TMAStep({ data, setData, onNext, onBack }) {
       ctx.stroke();
     }
 
-    function endDraw(e) {
+    function endDraw() {
       if (!isDrawingRef.current) return;
       isDrawingRef.current = false;
-      // Save signature data
       var sigData = canvas.toDataURL("image/png");
       setData(function(p) {
         return Object.assign({}, p, {
@@ -548,12 +556,10 @@ function TMAStep({ data, setData, onNext, onBack }) {
       setHasSigned(true);
     }
 
-    // Mouse events
     canvas.addEventListener("mousedown", startDraw);
     canvas.addEventListener("mousemove", draw);
     canvas.addEventListener("mouseup", endDraw);
     canvas.addEventListener("mouseleave", endDraw);
-    // Touch events
     canvas.addEventListener("touchstart", startDraw, { passive: false });
     canvas.addEventListener("touchmove", draw, { passive: false });
     canvas.addEventListener("touchend", endDraw);
@@ -574,7 +580,6 @@ function TMAStep({ data, setData, onNext, onBack }) {
     if (!canvas) return;
     var ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Redraw signature line
     ctx.strokeStyle = C.gray200;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -644,12 +649,10 @@ function PaymentStep({ data, setData, onNext, onBack }) {
   var handlePayment = function() {
     setData(function(p) { return Object.assign({}, p, { _processing: true }); });
 
-    // Open Stripe IMMEDIATELY on click (before async) to avoid popup blocker
     var stripeUrl = STRIPE_PAYMENT_LINK + "?prefilled_email=" + encodeURIComponent(data.email || "");
     var stripeWindow = window.open(stripeUrl, "_blank");
     var popupBlocked = !stripeWindow || stripeWindow.closed;
 
-    // Send ALL raw form data to our API route — it generates the PDF + email
     fetch(SUBMIT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -663,15 +666,18 @@ function PaymentStep({ data, setData, onNext, onBack }) {
       console.log("Intake submitted successfully:", result);
       if (popupBlocked) { window.location.href = stripeUrl; return; }
       setData(function(p) { return Object.assign({}, p, { _processing: false, paymentComplete: true, paymentDate: new Date().toISOString() }); });
+      try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_STEP_KEY); } catch(e) {}
       onNext();
     }).catch(function(err) {
       console.error("Submission error:", err);
       alert("There was an issue submitting your information. Your payment page should still be open. Please contact Anthony at (561) 427-9635 if the problem persists.");
       if (popupBlocked) { window.location.href = stripeUrl; return; }
       setData(function(p) { return Object.assign({}, p, { _processing: false, paymentComplete: true }); });
+      try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_STEP_KEY); } catch(e) {}
       onNext();
     });
   };
+
   return (
     <div style={{ maxWidth: 580, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
       <ProgressBar step={6} />
@@ -713,23 +719,12 @@ function PaymentStep({ data, setData, onNext, onBack }) {
   );
 }
 
-// ============ STEP 7: CONFIRMATION ============
+// ============ STEP 7: CONFIRMATION (simplified) ============
 function ConfirmationStep({ data, setData }) {
   var isNY = NY_STATES.includes(data.state);
   var labcorpUrl = data.zip ? "https://www.labcorp.com/labs-and-appointments?zip=" + data.zip : "https://www.labcorp.com/labs-and-appointments";
   var editingEmail = data._editingEmail || false;
   var tempEmail = data._tempEmail || data.email;
-
-  // Physical upload handler
-  function handlePhysicalUpload(f) {
-    if (f.type.startsWith("image/")) {
-      var reader = new FileReader();
-      reader.onload = function(ev) { setData(function(p) { return Object.assign({}, p, { physicalPreview: ev.target.result }); }); };
-      reader.readAsDataURL(f);
-    } else {
-      setData(function(p) { return Object.assign({}, p, { physicalPreview: f.name }); });
-    }
-  }
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", animation: "ndmFadeIn 0.6s ease" }}>
@@ -742,7 +737,6 @@ function ConfirmationStep({ data, setData }) {
         <p style={{ fontSize: 14, color: C.gray400, fontFamily: "'Lato', sans-serif", marginTop: 10 }}>Payment received. Here's what happens next.</p>
       </div>
 
-      {/* 1: Lab Work */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.rose, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>1</div>
@@ -788,45 +782,21 @@ function ConfirmationStep({ data, setData }) {
         </div>
       </Card>
 
-      {/* 2: Physical with upload */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.rose, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>2</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif", marginBottom: 6 }}>Physical Examination</div>
-            {data.physicalPreview ? (
-              <div style={{ padding: 12, background: "rgba(91,138,114,0.08)", border: "1px solid rgba(91,138,114,0.25)", borderRadius: 8, marginBottom: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, color: C.sage, fontFamily: "'Lato', sans-serif", fontWeight: 700 }}>✓ Physical exam uploaded — we have it on file.</span>
-                  <button onClick={function() { setData(function(p) { return Object.assign({}, p, { physicalPreview: null }); }); }}
-                    style={{ background: "transparent", border: "none", color: C.gray400, fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>Remove</button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <p style={{ fontSize: 13, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, margin: "0 0 10px" }}>We need a completed physical exam on file. Options:</p>
-                <div style={{ fontSize: 12, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, marginBottom: 12 }}>
-                  <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Recent Physical</strong> — within 12 months, signed by a physician</div>
-                  <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Walk-In Clinic</strong> — any clinic that offers basic wellness physicals. You can provide the physical form which you can download below.</div>
-                  {isNY && <div><strong style={{ color: C.charcoal }}>✓ Local Office (New York)</strong> — Anthony will coordinate with you</div>}
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: C.sage, color: "#fff", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Lato', sans-serif" }}>
-                    <input type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={function(e) { var f = e.target.files[0]; if (f) handlePhysicalUpload(f); }} />
-                    📤 Upload Physical Exam
-                  </label>
-                  <a href="/Physical_Exam_Form.pdf" target="_blank" rel="noopener noreferrer" download
-                    style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: C.cream, border: "1px solid " + C.gray200, borderRadius: 6, color: C.charcoal, fontSize: 13, fontWeight: 700, textDecoration: "none", fontFamily: "'Lato', sans-serif" }}>
-                    📄 Download Blank Form
-                  </a>
-                </div>
-              </div>
-            )}
+            <p style={{ fontSize: 13, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, margin: "0 0 10px" }}>A completed physical exam is required to proceed with treatment. Options:</p>
+            <div style={{ fontSize: 12, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, marginBottom: 12 }}>
+              <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Recent Physical</strong> — If you have a physical within the last 12 months signed by a physician, email it to <a href="mailto:Anthony@nightdaymed.net" style={{ color: C.sage, fontWeight: 700 }}>Anthony@nightdaymed.net</a></div>
+              <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Walk-In Clinic</strong> — Visit any clinic that offers basic wellness physicals. Your clinical advisor can provide the required form.</div>
+              {isNY && <div><strong style={{ color: C.charcoal }}>✓ Local Office (New York)</strong> — Anthony will coordinate with you to schedule at our office.</div>}
+            </div>
           </div>
         </div>
       </Card>
 
-      {/* 3: Physician Consultation */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.rose, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>3</div>
@@ -837,7 +807,6 @@ function ConfirmationStep({ data, setData }) {
         </div>
       </Card>
 
-      {/* 4: Treatment */}
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.sage, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>4</div>
@@ -848,7 +817,6 @@ function ConfirmationStep({ data, setData }) {
         </div>
       </Card>
 
-      {/* Contact */}
       <Card style={{ textAlign: "center", background: C.rose }}>
         <p style={{ fontSize: 14, color: "rgba(255,255,255,0.8)", margin: "0 0 8px", fontFamily: "'Lato', sans-serif" }}>Questions? We're here for you.</p>
         <a href="mailto:Anthony@nightdaymed.net" style={{ color: "#fff", fontSize: 16, fontWeight: 700, textDecoration: "none", fontFamily: "'Lato', sans-serif" }}>Anthony@nightdaymed.net</a>
@@ -860,7 +828,7 @@ function ConfirmationStep({ data, setData }) {
   );
 }
 
-// ============ MAIN APP ============
+// ============ MAIN APP (with localStorage persistence) ============
 export default function NDMIntake() {
   var _s = useState(0);
   var step = _s[0];
@@ -868,30 +836,58 @@ export default function NDMIntake() {
   var _d = useState({});
   var data = _d[0];
   var setData = _d[1];
+  var _loaded = useState(false);
+  var loaded = _loaded[0];
+  var setLoaded = _loaded[1];
 
-  var handleSubmit = function() {
-    setStep(7);
-  };
+  useEffect(function() {
+    try {
+      var savedData = localStorage.getItem(STORAGE_KEY);
+      var savedStep = localStorage.getItem(STORAGE_STEP_KEY);
+      if (savedData) {
+        var parsed = JSON.parse(savedData);
+        var restoredStep = savedStep ? parseInt(savedStep, 10) : 0;
+        if (restoredStep >= 7) {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_STEP_KEY);
+        } else {
+          setData(parsed);
+          setStep(restoredStep);
+        }
+      }
+    } catch (e) {}
+    setLoaded(true);
+  }, []);
+
+  useEffect(function() {
+    if (!loaded) return;
+    if (step >= 7) return;
+    try {
+      var toSave = Object.assign({}, data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+      localStorage.setItem(STORAGE_STEP_KEY, step.toString());
+    } catch (e) {}
+  }, [data, step, loaded]);
+
+  var handleSubmit = function() { setStep(7); };
 
   var goNext = function() {
-    // Step 6 (Payment) handles submission via handlePayment which calls onNext
     if (step === 6) { handleSubmit(); return; }
     setStep(function(s) { return s + 1; });
-    try { window.scrollTo(0, 0); } catch (e) { /* noop */ }
+    try { window.scrollTo(0, 0); } catch (e) {}
   };
   var goBack = function() {
     setStep(function(s) { return s - 1; });
-    try { window.scrollTo(0, 0); } catch (e) { /* noop */ }
+    try { window.scrollTo(0, 0); } catch (e) {}
   };
 
-  // Flow: Welcome(0) → BasicInfo(1) → Symptoms(2) → MedHx(3) → IDUpload(4) → TMA(5) → Payment(6) → Confirmation(7)
+  if (!loaded) return null;
+
   return (
     <div style={{ minHeight: "100vh", background: C.cream, padding: "32px 16px" }}>
-
       <div style={{ textAlign: "center", marginBottom: 28 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: C.rose, fontFamily: "'Merriweather', serif", letterSpacing: "0.04em" }}>NIGHT <span style={{ color: C.sage }}>&</span> DAY MEDICAL</div>
       </div>
-
       <div style={{ maxWidth: 800, margin: "0 auto" }}>
         {step === 0 && <WelcomeStep onNext={goNext} />}
         {step === 1 && <BasicInfoStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
@@ -902,7 +898,6 @@ export default function NDMIntake() {
         {step === 6 && <PaymentStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
         {step === 7 && <ConfirmationStep data={data} setData={setData} />}
       </div>
-
       <div style={{ textAlign: "center", marginTop: 48, paddingTop: 20, borderTop: "1px solid " + C.gray200 }}>
         <p style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>© 2026 Night & Day Medical. All information is confidential and protected.</p>
       </div>

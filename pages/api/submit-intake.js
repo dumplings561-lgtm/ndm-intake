@@ -172,9 +172,27 @@ function generateIntakePDF(d) {
   sectionTitle("Photo ID");
   if (d.idPreview && typeof d.idPreview === "string" && d.idPreview.startsWith("data:image")) {
     try {
-      checkSpace(160);
-      doc.addImage(d.idPreview, "JPEG", MARGIN + 8, y, 200, 130);
-      y += 140;
+      // Calculate aspect ratio from data URL using jsPDF's internal image parsing
+      var maxImgW = CONTENT_W - 60;
+      var maxImgH = 200;
+      var imgProps = null;
+      try { imgProps = doc.getImageProperties(d.idPreview); } catch(pe) {}
+      var imgW = maxImgW;
+      var imgH = maxImgH;
+      if (imgProps && imgProps.width && imgProps.height) {
+        var ratio = imgProps.width / imgProps.height;
+        if (ratio > maxImgW / maxImgH) {
+          imgW = maxImgW;
+          imgH = maxImgW / ratio;
+        } else {
+          imgH = maxImgH;
+          imgW = maxImgH * ratio;
+        }
+      }
+      checkSpace(imgH + 20);
+      var imgFormat = d.idPreview.indexOf("data:image/png") === 0 ? "PNG" : "JPEG";
+      doc.addImage(d.idPreview, imgFormat, MARGIN + 8, y, imgW, imgH, undefined, "FAST");
+      y += imgH + 10;
     } catch (e) {
       fieldRow("Photo ID", "Image could not be embedded — uploaded with intake");
     }
