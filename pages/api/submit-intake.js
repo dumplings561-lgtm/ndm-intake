@@ -1,13 +1,13 @@
 // pages/api/submit-intake.js
-// Generates a clinical intake PDF and sends formatted email via Resend
+// Generates a print-ready clinical intake PDF and sends formatted email via Resend
 
 import { Resend } from "resend";
 import { jsPDF } from "jspdf";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Email recipients
-const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || "anthonysantoiemma561@gmail.com").split(",").map(e => e.trim());
+// Email recipients — default to anthony@nightdaymed.net
+const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || "anthony@nightdaymed.net").split(",").map(e => e.trim());
 
 // ========== PDF GENERATION ==========
 function generateIntakePDF(d) {
@@ -36,20 +36,18 @@ function generateIntakePDF(d) {
   }
 
   function drawHeader(title, subtitle) {
-    // Header bar
+    // Clean header bar — no addresses, no HRT subtitle
     doc.setFillColor(...COLORS.rose);
-    doc.rect(0, 0, W, 70, "F");
+    doc.rect(0, 0, W, 58, "F");
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 255, 255);
-    doc.text("NIGHT & DAY MEDICAL", W / 2, 30, { align: "center" });
+    doc.text("NIGHT & DAY MEDICAL", W / 2, 28, { align: "center" });
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("Hormone Replacement Therapy Program", W / 2, 48, { align: "center" });
-    doc.setFontSize(8);
-    doc.text("333 E. 49th St, Lobby D, New York, NY 10017  |  427 Fort Washington Ave 8TC, New York, NY 10033", W / 2, 62, { align: "center" });
+    doc.text("Patient Intake Record", W / 2, 46, { align: "center" });
 
-    y = 90;
+    y = 76;
 
     // Document title
     doc.setFontSize(14);
@@ -149,8 +147,8 @@ function generateIntakePDF(d) {
   var fullName = (d.lastName || "") + ", " + (d.firstName || "");
   var today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-  // ===== PAGE 1: PATIENT DEMOGRAPHICS =====
-  drawHeader("Patient Demographics", "Date: " + today);
+  // ===== PAGE 1: PATIENT CHART — DEMOGRAPHICS & MEDICAL HISTORY =====
+  drawHeader("Patient Chart — Demographics & Medical History", "Date: " + today);
 
   sectionTitle("Patient Information");
   fieldRow("Patient Name", fullName);
@@ -170,17 +168,29 @@ function generateIntakePDF(d) {
   fieldRow("Source", d.referralSource || "Not provided");
   divider();
 
-  sectionTitle("ID Verification");
-  var idStatus = d.idBypassed ? "Will provide separately" : (d.idPreview ? "Uploaded with intake" : "Not provided");
-  fieldRow("Photo ID Status", idStatus);
+  // Embed Photo ID if available
+  sectionTitle("Photo ID");
+  if (d.idPreview && typeof d.idPreview === "string" && d.idPreview.startsWith("data:image")) {
+    try {
+      checkSpace(160);
+      doc.addImage(d.idPreview, "JPEG", MARGIN + 8, y, 200, 130);
+      y += 140;
+    } catch (e) {
+      fieldRow("Photo ID", "Image could not be embedded — uploaded with intake");
+    }
+  } else if (d.idBypassed) {
+    fieldRow("Photo ID", "Will provide separately");
+  } else if (d.idPreview) {
+    fieldRow("Photo ID", "Uploaded: " + d.idPreview);
+  } else {
+    fieldRow("Photo ID", "Not provided");
+  }
+  divider();
 
-  // ===== PAGE 2: MEDICAL HISTORY & SYMPTOM ASSESSMENT =====
-  newPage();
-  drawHeader("Medical History & Symptom Assessment", "Patient: " + fullName + "  |  DOB: " + (d.dob || ""));
-
+  // Chief Complaints
   sectionTitle("Chief Complaints / Symptoms");
   if (symptomLabels.length > 0) {
-    symptomLabels.forEach(function(s, i) {
+    symptomLabels.forEach(function(s) {
       checkSpace(13);
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
@@ -209,7 +219,6 @@ function generateIntakePDF(d) {
   sectionTitle("Past / Current Medical Conditions");
   var conditions = d.conditions || [];
   if (conditions.length > 0) {
-    // Print in rows of 3
     for (var i = 0; i < conditions.length; i += 3) {
       checkSpace(13);
       var row = conditions.slice(i, i + 3).join("  •  ");
@@ -245,24 +254,40 @@ function generateIntakePDF(d) {
   fieldRow("PCP Name", d.pcpName || "Not provided");
   fieldRow("PCP Phone", d.pcpPhone || "Not provided");
 
-  // ===== PAGE 3: THERAPY MANAGEMENT AGREEMENT =====
+  // ===== PAGE 2: THERAPY MANAGEMENT AGREEMENT =====
   newPage();
   drawHeader("Therapy Management Agreement", "Patient: " + fullName + "  |  DOB: " + (d.dob || ""));
 
+  // Preamble
+  checkSpace(50);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...COLORS.charcoal);
+  var preamble = 'This agreement between ' + fullName + ' ("Patient") and Night & Day Medical ("NDM") establishes guidelines and conditions for the use of hormone replacement therapy ("HRT") involving DEA "controlled" or "scheduled" medications. NDM and patient agree that these guidelines and conditions are an essential factor in maintaining a successful patient/practitioner relationship. Adverse side effects and/or physical/psychological dependence may develop after repeated use of these medications and, therefore, these agents are prescribed with caution.';
+  var preambleLines = doc.splitTextToSize(preamble, CONTENT_W - 16);
+  doc.text(preambleLines, MARGIN + 8, y);
+  y += preambleLines.length * 11 + 10;
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...COLORS.charcoal);
+  doc.text("The patient agrees and accepts the following conditions:", MARGIN + 8, y);
+  y += 16;
+
   var tmaItems = [
-    "I understand that the medications I am receiving or will receive are prescribed for me based on diagnoses derived from my submitted medical history, and the results of lab work and a physical examination.",
+    "I understand that the medications I am receiving or will receive are prescribed for me based on diagnoses derived from my submitted medical history, and the results of lab work and a physical examination. The medications are to be used exclusively for treatment of hormonal deficiencies and related medical conditions in accordance with applicable state and Federal law.",
     "I understand and agree that no medical treatment or medication provided to me by Night & Day Medical will be used for the purposes of bodybuilding, performance enhancement or physical appearance.",
-    "I certify that the answers I provided to the health questions on the Health History laboratories are accurate and correct to the best of my knowledge.",
-    "I will not attempt to obtain HRT medications from any other health care practitioner without disclosing my current medical usage of HRT or other medications.",
-    "I have discussed and understand the risks and benefits associated with HRT. I will immediately report any adverse side effect related to the use of my HRT to Night & Day Medical.",
-    "I understand that representatives of Night & Day Medical and/or Licensed Physician's Assistant are available for questions during normal business hours.",
-    "I agree that the HRT medications furnished by Night & Day Medical are for my personal use only. I will not share, sell, or trade my medications.",
-    "I will be able to purchase the medications from the pharmacy designated by Night & Day Medical and the pharmacy will send medication directly to me.",
+    "I certify that the answers I provided to the health questions on the Health History laboratories are accurate and correct to the best of my knowledge and that I have not been coached by any third party nor have I knowingly been deceptive for secondary gain, for medical treatment or prescription of a medication.",
+    "I will not attempt to obtain HRT medications from any other health care practitioner without disclosing my current medical usage of HRT or other medications. I understand that it may be against the law to do so.",
+    "I have discussed and understand the risks and benefits associated with HRT. I will immediately report any adverse side effect related to the use of my HRT to Night & Day Medical and discontinue use until advised to resume usage by Night & Day Medical. I voluntarily assume any and all possible risks which may be associated with HRT.",
+    "I understand that representatives of Night & Day Medical and/or Licensed Physicians Assistant are available for questions and/or concerning during normal business hours throughout the course of my treatment.",
+    "I agree that the HRT medications furnished by Night & Day Medical are for my personal use only and for no other purpose. I will not share, sell, or trade my medications. I will safeguard my medications from loss or theft and will be responsible for their safekeeping.",
+    "I will be able to purchase the medications from the pharmacy designated by Night & Day Medical and the pharmacy will send medication directly to me. I understand I have the right to purchase my medications from any pharmacy of my choice. If I chose to obtain medications from a pharmacy of my own choice, I must notify Night & Day Medical in writing of my intention to do so and include the name of the pharmacy in my request.",
     "I agree and understand that federal regulations prohibit the return of prescribed medications.",
-    "I understand that HRT treatment and medications are not covered by health insurance. I agree that all services are to be paid for in advance.",
-    "I agree that the Night & Day Medical patient/physician relationship is not intended to replace the existing relationship with my current PCP.",
-    "I agree that I will use my medication at the prescribed rate and dosage.",
-    "I understand that Night & Day Medical only treats patients over the age of 30 with documented symptoms of hormone deficiencies.",
+    "I understand that HRT treatment and medications are not covered by health insurance. I agree that all services and medications provided by Night & Day Medical or its associated providers are to be paid for in advance. I will not seek reimbursement through my health insurance company, Medicare, Medicaid, or other third party payer.",
+    "I agree that the Night & Day Medical patient/physician relationship is not intended to replace the existing patient/physician relationship with my current primary care provider (PCP) and the treatment provided by Night & Day Medical will be in conjunction with the care provided by my current PCP.",
+    "I agree that I will use my medication at the prescribed rate and dosage and will keep the medication in its respective labeled container.",
+    "I understand that Night & Day Medical only treats patients over the age of 30 with documented symptoms of hormone deficiencies (Hypogonadism and Adult Growth Hormone Deficiency). No prescription will be provided unless a clinical need exists based on required lab work, physician consultation, and current health history through either patient's personal physician or a Night & Day Medical - affiliated physician. Agreeing to lab work does not automatically qualify patient to clinically necessity and prescription of HRT.",
     "I understand that Night & Day Medical does not carry Malpractice Insurance.",
   ];
 
@@ -279,25 +304,70 @@ function generateIntakePDF(d) {
     y += lines.length * 10 + 6;
   });
 
-  // Signature block
-  checkSpace(80);
+  // ===== SIGNATURE BLOCK =====
+  checkSpace(140);
   y += 10;
   divider();
-  doc.setFillColor(...COLORS.cream);
-  doc.rect(MARGIN, y, CONTENT_W, 60, "F");
 
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...COLORS.charcoal);
-  doc.text("AGREEMENT STATUS:  " + (d.tmaAgreed ? "ACCEPTED" : "NOT ACCEPTED"), MARGIN + 12, y + 18);
+  doc.text("AGREEMENT STATUS:  " + (d.tmaAgreed ? "ACCEPTED" : "NOT ACCEPTED"), MARGIN + 8, y);
+  y += 18;
 
-  if (d.tmaAgreed && d.signatureText) {
-    doc.setFontSize(9);
+  // Embed drawn signature image
+  if (d.tmaAgreed && d.signatureDataUrl) {
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...COLORS.gray);
+    doc.text("Patient Signature:", MARGIN + 8, y);
+    y += 4;
+
+    try {
+      doc.addImage(d.signatureDataUrl, "PNG", MARGIN + 8, y, 200, 60);
+      y += 65;
+    } catch (e) {
+      doc.setFont("helvetica", "normal");
+      doc.text("[Signature image could not be embedded]", MARGIN + 8, y + 10);
+      y += 20;
+    }
+
+    // Signature line
+    doc.setDrawColor(...COLORS.lightGray);
+    doc.setLineWidth(0.5);
+    doc.line(MARGIN + 8, y, MARGIN + 220, y);
+    y += 14;
+
+    doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text("E-Signature:  " + d.signatureText, MARGIN + 12, y + 34);
-    doc.text("Date Signed:  " + today, MARGIN + 12, y + 48);
+    doc.setTextColor(...COLORS.charcoal);
+    doc.text("Printed Name:  " + ((d.firstName || "") + " " + (d.lastName || "")), MARGIN + 8, y);
+    y += 12;
+    doc.text("Date Signed:  " + today, MARGIN + 8, y);
+    y += 12;
+
+    // Audit trail
+    if (d.signatureTimestamp) {
+      doc.text("Timestamp:  " + d.signatureTimestamp, MARGIN + 8, y);
+      y += 10;
+    }
+    if (d.signatureUA) {
+      var uaShort = d.signatureUA.length > 80 ? d.signatureUA.substring(0, 80) + "..." : d.signatureUA;
+      doc.setFontSize(6);
+      doc.text("User Agent:  " + uaShort, MARGIN + 8, y);
+      y += 10;
+    }
+
+    // Legal notice
+    y += 4;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(...COLORS.gray);
+    var legalNote = "This electronic signature constitutes a legally binding agreement under the Electronic Signatures in Global and National Commerce Act (ESIGN Act, 15 U.S.C. § 7001) and the Uniform Electronic Transactions Act (UETA).";
+    var legalLines = doc.splitTextToSize(legalNote, CONTENT_W - 16);
+    doc.text(legalLines, MARGIN + 8, y);
+    y += legalLines.length * 8 + 4;
   }
-  y += 70;
 
   // Footer on every page
   var totalPages = doc.getNumberOfPages();
@@ -310,7 +380,6 @@ function generateIntakePDF(d) {
     doc.text("Generated " + today, W / 2, 780, { align: "center" });
   }
 
-  // Return as base64
   return doc.output("arraybuffer");
 }
 
@@ -335,7 +404,7 @@ function generateEmailHTML(d) {
     return m ? m.label : id;
   });
   var conditions = d.conditions || [];
-  var idStatus = d.idBypassed ? "Will provide separately" : (d.idPreview ? "Uploaded" : "Not provided");
+  var idStatus = d.idBypassed ? "Will provide separately" : (d.idPreview ? "Uploaded (embedded in PDF)" : "Not provided");
 
   return '<!DOCTYPE html><html><head><style>' +
     'body{font-family:Arial,sans-serif;background:#f7f3ef;margin:0;padding:20px}' +
@@ -398,13 +467,13 @@ function generateEmailHTML(d) {
 
     // TMA + Status
     '<div class="section"><div class="section-title">Agreement & Status</div>' +
-    '<div class="row"><div class="label">TMA Signed</div><div class="value">' + (d.tmaAgreed ? '✅ Yes — ' + (d.signatureText || "") : '❌ No') + '</div></div>' +
+    '<div class="row"><div class="label">TMA Signed</div><div class="value">' + (d.tmaAgreed ? '✅ Yes — Drawn signature captured' : '❌ No') + '</div></div>' +
     '<div class="row"><div class="label">Photo ID</div><div class="value">' + idStatus + '</div></div>' +
     '<div class="row"><div class="label">Payment</div><div class="value">⏳ Pending Stripe confirmation</div></div>' +
     '</div>' +
 
     '</div>' +
-    '<div class="status-bar">Submitted ' + new Date().toLocaleString("en-US", { timeZone: "America/New_York" }) + ' ET — Full intake packet attached as PDF</div>' +
+    '<div class="status-bar">Submitted ' + new Date().toLocaleString("en-US", { timeZone: "America/New_York" }) + ' ET — Full intake packet attached as PDF (print-ready chart)</div>' +
     '</div></body></html>';
 }
 

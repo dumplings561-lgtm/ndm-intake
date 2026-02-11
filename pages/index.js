@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 
 // ============ CONFIGURATION ============
-// Stripe Payment Link — replace with live link when ready
 var STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_28EdR2gm1bhP01R4WM3gk00";
-// API route for form submission (generates PDF + sends email)
 var SUBMIT_URL = "/api/submit-intake";
 
-// ============ CORRECT NDM COLOR SCHEME (from nightdaymedical.com) ============
+// ============ NDM COLOR SCHEME ============
 const C = {
   rose: "#7D5A5A",
   roseDark: "#5E3F3F",
@@ -67,23 +65,23 @@ const MEDICAL_CONDITIONS = [
   "Anxiety", "Depression", "Anemia", "Gout"
 ];
 const TMA_TEXT = [
-  "I understand that the medications I am receiving or will receive are prescribed for me based on diagnoses derived from my submitted medical history, and the results of lab work and a physical examination.",
+  "I understand that the medications I am receiving or will receive are prescribed for me based on diagnoses derived from my submitted medical history, and the results of lab work and a physical examination. The medications are to be used exclusively for treatment of hormonal deficiencies and related medical conditions in accordance with applicable state and Federal law.",
   "I understand and agree that no medical treatment or medication provided to me by Night & Day Medical will be used for the purposes of bodybuilding, performance enhancement or physical appearance.",
-  "I certify that the answers I provided to the health questions on the Health History laboratories are accurate and correct to the best of my knowledge.",
-  "I will not attempt to obtain HRT medications from any other health care practitioner without disclosing my current medical usage of HRT or other medications.",
-  "I have discussed and understand the risks and benefits associated with HRT. I will immediately report any adverse side effect related to the use of my HRT to Night & Day Medical.",
-  "I understand that representatives of Night & Day Medical and/or Licensed Physician's Assistant are available for questions during normal business hours.",
-  "I agree that the HRT medications furnished by Night & Day Medical are for my personal use only. I will not share, sell, or trade my medications.",
-  "I will be able to purchase the medications from the pharmacy designated by Night & Day Medical and the pharmacy will send medication directly to me.",
+  "I certify that the answers I provided to the health questions on the Health History laboratories are accurate and correct to the best of my knowledge and that I have not been coached by any third party nor have I knowingly been deceptive for secondary gain, for medical treatment or prescription of a medication.",
+  "I will not attempt to obtain HRT medications from any other health care practitioner without disclosing my current medical usage of HRT or other medications. I understand that it may be against the law to do so.",
+  "I have discussed and understand the risks and benefits associated with HRT. I will immediately report any adverse side effect related to the use of my HRT to Night & Day Medical and discontinue use until advised to resume usage by Night & Day Medical. I voluntarily assume any and all possible risks which may be associated with HRT.",
+  "I understand that representatives of Night & Day Medical and/or Licensed Physicians Assistant are available for questions and/or concerning during normal business hours throughout the course of my treatment.",
+  "I agree that the HRT medications furnished by Night & Day Medical are for my personal use only and for no other purpose. I will not share, sell, or trade my medications. I will safeguard my medications from loss or theft and will be responsible for their safekeeping.",
+  "I will be able to purchase the medications from the pharmacy designated by Night & Day Medical and the pharmacy will send medication directly to me. I understand I have the right to purchase my medications from any pharmacy of my choice. If I chose to obtain medications from a pharmacy of my own choice, I must notify Night & Day Medical in writing of my intention to do so and include the name of the pharmacy in my request.",
   "I agree and understand that federal regulations prohibit the return of prescribed medications.",
-  "I understand that HRT treatment and medications are not covered by health insurance. I agree that all services are to be paid for in advance.",
-  "I agree that the Night & Day Medical patient/physician relationship is not intended to replace the existing relationship with my current PCP.",
-  "I agree that I will use my medication at the prescribed rate and dosage.",
-  "I understand that Night & Day Medical only treats patients over the age of 30 with documented symptoms of hormone deficiencies.",
+  "I understand that HRT treatment and medications are not covered by health insurance. I agree that all services and medications provided by Night & Day Medical or its associated providers are to be paid for in advance. I will not seek reimbursement through my health insurance company, Medicare, Medicaid, or other third party payer.",
+  "I agree that the Night & Day Medical patient/physician relationship is not intended to replace the existing patient/physician relationship with my current primary care provider (PCP) and the treatment provided by Night & Day Medical will be in conjunction with the care provided by my current PCP.",
+  "I agree that I will use my medication at the prescribed rate and dosage and will keep the medication in its respective labeled container.",
+  "I understand that Night & Day Medical only treats patients over the age of 30 with documented symptoms of hormone deficiencies (Hypogonadism and Adult Growth Hormone Deficiency). No prescription will be provided unless a clinical need exists based on required lab work, physician consultation, and current health history through either patient's personal physician or a Night & Day Medical - affiliated physician. Agreeing to lab work does not automatically qualify patient to clinically necessity and prescription of HRT.",
   "I understand that Night & Day Medical does not carry Malpractice Insurance."
 ];
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
-const NY_NJ = ["NY", "NJ"];
+const NY_STATES = ["NY"];
 const TOTAL_STEPS = 7;
 
 // ============ SHARED COMPONENTS ============
@@ -185,7 +183,7 @@ function FileUpload({ label, description, preview, onUpload, onRemove, required 
       <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.gray600, marginBottom: 5, fontFamily: "'Lato', sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {label} {required && <span style={{ color: C.sage }}>*</span>}
       </label>
-      {description && <p style={{ fontSize: 12, color: C.gray400, fontFamily: "'Lato', sans-serif", margin: "0 0 10px", lineHeight: 1.4 }}>{description}</p>}
+      {description && <p style={{ fontSize: 12, color: C.gray400, fontFamily: "'Lato', sans-serif", marginBottom: 10, lineHeight: 1.5 }}>{description}</p>}
       {!preview ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <label style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}
@@ -236,7 +234,7 @@ function WelcomeStep({ onNext }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16, fontFamily: "'Lato', sans-serif" }}>3 Simple Steps</div>
         {[
           { n: "1", t: "Tell Us About Your Symptoms", d: "Quick 5-minute assessment so our medical team can understand your needs" },
-          { n: "2", t: "Get Your Labs Done", d: "We handle everything — just visit a Labcorp near you or our NY/NJ locations" },
+          { n: "2", t: "Get Your Labs Done", d: "We handle everything — just visit a Labcorp near you or our New York location" },
           { n: "3", t: "Start Feeling Like Yourself Again", d: "Meet with our physician, get your personalized plan, and begin treatment" },
         ].map(function(s) {
           return (
@@ -358,7 +356,7 @@ function SymptomsStep({ data, setData, onNext, onBack }) {
           })}
         </div>
         <div style={{ marginTop: 18, display: "flex", flexWrap: "wrap", gap: 14 }}>
-          <InputField label="How long have you experienced these?" type="select" value={data.symptomDuration || ""} onChange={function(v) { setData(function(p) { return Object.assign({}, p, { symptomDuration: v }); }); }} options={["Less than 3 months", "3-6 months", "6-12 months", "1-2 years", "2+ years"]} />
+          <InputField label="How long have you experienced these symptoms?" type="select" value={data.symptomDuration || ""} onChange={function(v) { setData(function(p) { return Object.assign({}, p, { symptomDuration: v }); }); }} options={["Less than 3 months", "3-6 months", "6-12 months", "1-2 years", "2+ years"]} />
           <InputField label="Additional details (optional)" type="textarea" value={data.symptomNotes || ""} onChange={function(v) { setData(function(p) { return Object.assign({}, p, { symptomNotes: v }); }); }} placeholder="Anything else you'd like us to know..." />
         </div>
       </Card>
@@ -417,23 +415,187 @@ function MedicalHistoryStep({ data, setData, onNext, onBack }) {
   );
 }
 
-// ============ STEP 4: TMA + TYPE-TO-SIGN ============
+// ============ STEP 4: ID UPLOAD (moved up before TMA) ============
+function IDUploadStep({ data, setData, onNext, onBack }) {
+  var u = function(k, v) { setData(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); };
+  var bypass = data.idBypassed || false;
+  var canProceed = data.idPreview || bypass;
+
+  function handleIDUpload(f) {
+    if (f.type.startsWith("image/")) {
+      var reader = new FileReader();
+      reader.onload = function(ev) { u("idPreview", ev.target.result); };
+      reader.readAsDataURL(f);
+    } else {
+      u("idPreview", f.name);
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 580, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
+      <ProgressBar step={4} />
+      <StepHeader title="Photo ID Verification" subtitle="Upload a clear photo of your government-issued ID" />
+      <Card>
+        {!bypass && (
+          <FileUpload
+            label="Driver's License / Photo ID"
+            description="Please upload the front of your driver's license or government-issued photo ID."
+            required
+            preview={data.idPreview}
+            onUpload={handleIDUpload}
+            onRemove={function() { u("idPreview", null); }}
+          />
+        )}
+        <div style={{ marginTop: bypass ? 0 : 20 }}>
+          <div onClick={function() { setData(function(p) { return Object.assign({}, p, { idBypassed: !p.idBypassed }); }); }}
+            style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 14, background: bypass ? "rgba(91,138,114,0.05)" : C.cream, border: "1.5px solid " + (bypass ? C.sage : C.gray200), borderRadius: 8, cursor: "pointer" }}>
+            <div style={{ width: 20, height: 20, borderRadius: 4, border: "2px solid " + (bypass ? C.sage : C.gray200), background: bypass ? C.sage : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+              {bypass && <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 13, color: bypass ? C.charcoal : C.gray400, fontFamily: "'Lato', sans-serif", lineHeight: 1.5 }}>I have already provided my ID or will send it separately to my clinical advisor.</span>
+          </div>
+        </div>
+      </Card>
+      <NavButtons onBack={onBack} onNext={onNext} disabled={!canProceed} />
+    </div>
+  );
+}
+
+// ============ STEP 5: TMA + CANVAS E-SIGNATURE ============
 function TMAStep({ data, setData, onNext, onBack }) {
   var agreed = data.tmaAgreed || false;
-  var sigText = data.signatureText || "";
   var fullName = (data.firstName || "") + " " + (data.lastName || "");
-  var sigValid = sigText.trim().toLowerCase() === fullName.trim().toLowerCase();
+  var canvasRef = useRef(null);
+  var isDrawingRef = useRef(false);
+  var hasDrawnRef = useRef(false);
+  var [hasSigned, setHasSigned] = useState(!!data.signatureDataUrl);
+
+  // Initialize canvas
+  useEffect(function() {
+    if (!agreed) return;
+    var canvas = canvasRef.current;
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+
+    // Set canvas size
+    var rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = 120;
+
+    // Draw signature line
+    ctx.strokeStyle = C.gray200;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, 95);
+    ctx.lineTo(canvas.width - 20, 95);
+    ctx.stroke();
+
+    // If we already have a signature, redraw it
+    if (data.signatureDataUrl) {
+      var img = new Image();
+      img.onload = function() { ctx.drawImage(img, 0, 0); };
+      img.src = data.signatureDataUrl;
+      hasDrawnRef.current = true;
+    }
+
+    // Drawing functions
+    function getPos(e) {
+      var r = canvas.getBoundingClientRect();
+      var clientX, clientY;
+      if (e.touches) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      return { x: clientX - r.left, y: clientY - r.top };
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      isDrawingRef.current = true;
+      hasDrawnRef.current = true;
+      var pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      ctx.strokeStyle = C.charcoal;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+    }
+
+    function draw(e) {
+      if (!isDrawingRef.current) return;
+      e.preventDefault();
+      var pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function endDraw(e) {
+      if (!isDrawingRef.current) return;
+      isDrawingRef.current = false;
+      // Save signature data
+      var sigData = canvas.toDataURL("image/png");
+      setData(function(p) {
+        return Object.assign({}, p, {
+          signatureDataUrl: sigData,
+          signatureTimestamp: new Date().toISOString(),
+          signatureUA: navigator.userAgent,
+        });
+      });
+      setHasSigned(true);
+    }
+
+    // Mouse events
+    canvas.addEventListener("mousedown", startDraw);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", endDraw);
+    canvas.addEventListener("mouseleave", endDraw);
+    // Touch events
+    canvas.addEventListener("touchstart", startDraw, { passive: false });
+    canvas.addEventListener("touchmove", draw, { passive: false });
+    canvas.addEventListener("touchend", endDraw);
+
+    return function() {
+      canvas.removeEventListener("mousedown", startDraw);
+      canvas.removeEventListener("mousemove", draw);
+      canvas.removeEventListener("mouseup", endDraw);
+      canvas.removeEventListener("mouseleave", endDraw);
+      canvas.removeEventListener("touchstart", startDraw);
+      canvas.removeEventListener("touchmove", draw);
+      canvas.removeEventListener("touchend", endDraw);
+    };
+  }, [agreed]);
+
+  function clearSignature() {
+    var canvas = canvasRef.current;
+    if (!canvas) return;
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Redraw signature line
+    ctx.strokeStyle = C.gray200;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(20, 95);
+    ctx.lineTo(canvas.width - 20, 95);
+    ctx.stroke();
+    hasDrawnRef.current = false;
+    setHasSigned(false);
+    setData(function(p) { return Object.assign({}, p, { signatureDataUrl: null, signatureTimestamp: null, signatureUA: null }); });
+  }
 
   return (
     <div style={{ maxWidth: 700, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
-      <ProgressBar step={4} />
+      <ProgressBar step={5} />
       <StepHeader title="Therapy Management Agreement" subtitle="Please read carefully and sign below" />
       <Card>
         <div style={{ background: C.cream, border: "1px solid " + C.gray200, borderRadius: 8, padding: 20, maxHeight: 320, overflowY: "auto", marginBottom: 20 }}>
           <p style={{ fontSize: 13, color: C.gray600, lineHeight: 1.7, marginBottom: 14, fontFamily: "'Lato', sans-serif" }}>
-            This agreement between <strong style={{ color: C.charcoal }}>{fullName}</strong> ("Patient") and <strong style={{ color: C.charcoal }}>Night & Day Medical</strong> ("NDM") establishes guidelines for hormone replacement therapy involving DEA controlled medications.
+            This agreement between <strong style={{ color: C.charcoal }}>{fullName}</strong> ("Patient") and <strong style={{ color: C.charcoal }}>Night & Day Medical</strong> ("NDM") establishes guidelines and conditions for the use of hormone replacement therapy ("HRT") involving DEA "controlled" or "scheduled" medications. NDM and patient agree that these guidelines and conditions are an essential factor in maintaining a successful patient/practitioner relationship. Adverse side effects and/or physical/psychological dependence may develop after repeated use of these medications and, therefore, these agents are prescribed with caution.
           </p>
-          <p style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, marginBottom: 10, fontFamily: "'Lato', sans-serif" }}>The patient agrees and accepts:</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, marginBottom: 10, fontFamily: "'Lato', sans-serif" }}>The patient agrees and accepts the following conditions:</p>
           {TMA_TEXT.map(function(t, i) {
             return (
               <p key={i} style={{ fontSize: 12, color: C.gray600, lineHeight: 1.65, marginBottom: 8, fontFamily: "'Lato', sans-serif" }}>
@@ -451,28 +613,33 @@ function TMAStep({ data, setData, onNext, onBack }) {
         </div>
         {agreed && (
           <div style={{ animation: "ndmFadeIn 0.3s ease" }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: C.gray600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, display: "block", fontFamily: "'Lato', sans-serif" }}>E-Signature — Type your full name to sign</label>
-            <input type="text" placeholder={"Type: " + fullName}
-              value={sigText}
-              onChange={function(e) { setData(function(p) { return Object.assign({}, p, { signatureText: e.target.value }); }); }}
-              style={{ width: "100%", padding: "16px 18px", background: "#fff", border: "1px solid " + (sigValid ? C.sage : C.gray200), borderRadius: 8, fontSize: 22, fontFamily: "'Dancing Script', cursive", color: C.charcoal, outline: "none", letterSpacing: "0.5px" }}
-              onFocus={function(e) { e.target.style.borderColor = C.sage; }}
-              onBlur={function(e) { if (!sigValid) e.target.style.borderColor = C.gray200; }} />
-            <div style={{ marginTop: 6, fontSize: 11, color: sigValid ? C.green : C.gray300, fontFamily: "'Lato', sans-serif" }}>
-              {sigValid ? "✓ Signature matches — you're all set" : "Please type your full name exactly as shown: " + fullName}
+            <label style={{ fontSize: 12, fontWeight: 700, color: C.gray600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6, display: "block", fontFamily: "'Lato', sans-serif" }}>E-Signature — Draw your signature below</label>
+            <div style={{ position: "relative", border: "1px solid " + (hasSigned ? C.sage : C.gray200), borderRadius: 8, overflow: "hidden", background: "#fff", touchAction: "none" }}>
+              <canvas ref={canvasRef} style={{ width: "100%", height: 120, cursor: "crosshair", display: "block" }} />
             </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: hasSigned ? C.green : C.gray300, fontFamily: "'Lato', sans-serif" }}>
+                {hasSigned ? "✓ Signature captured — you're all set" : "Please draw your signature above using your finger or mouse"}
+              </div>
+              <button onClick={clearSignature} style={{ padding: "4px 12px", background: "transparent", border: "1px solid " + C.gray200, borderRadius: 4, fontSize: 11, color: C.gray400, cursor: "pointer", fontFamily: "'Lato', sans-serif" }}>Clear</button>
+            </div>
+            {hasSigned && (
+              <div style={{ marginTop: 10, padding: 10, background: C.cream, borderRadius: 6, fontSize: 10, color: C.gray400, fontFamily: "'Lato', sans-serif", lineHeight: 1.5 }}>
+                <strong>Audit Trail:</strong> Signed by {fullName} on {new Date().toLocaleString("en-US", { timeZone: "America/New_York" })} ET. This electronic signature constitutes a legally binding agreement under the ESIGN Act (15 U.S.C. § 7001) and UETA.
+              </div>
+            )}
           </div>
         )}
       </Card>
-      <NavButtons onBack={onBack} onNext={onNext} nextLabel="Proceed to Payment →" disabled={!agreed || !sigValid} />
+      <NavButtons onBack={onBack} onNext={onNext} nextLabel="Proceed to Payment →" disabled={!agreed || !hasSigned} />
     </div>
   );
 }
 
-// ============ STEP 5: PAYMENT ============
+// ============ STEP 6: PAYMENT ============
 function PaymentStep({ data, setData, onNext, onBack }) {
   var processing = data._processing || false;
-  var isNYNJ = NY_NJ.includes(data.state);
+  var isNY = NY_STATES.includes(data.state);
 
   var handlePayment = function() {
     setData(function(p) { return Object.assign({}, p, { _processing: true }); });
@@ -507,7 +674,7 @@ function PaymentStep({ data, setData, onNext, onBack }) {
   };
   return (
     <div style={{ maxWidth: 580, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
-      <ProgressBar step={5} />
+      <ProgressBar step={6} />
       <StepHeader title="Initial Consultation & Lab Work" subtitle="One-time payment to get started" />
       <Card>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
@@ -525,10 +692,10 @@ function PaymentStep({ data, setData, onNext, onBack }) {
             );
           })}
         </div>
-        {isNYNJ && (
+        {isNY && (
           <div style={{ background: "rgba(91,138,114,0.06)", border: "1px solid rgba(91,138,114,0.25)", borderRadius: 8, padding: 14, marginBottom: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.sageDark, fontFamily: "'Lato', sans-serif", marginBottom: 6 }}>📍 Local Appointment Available</div>
-            <p style={{ fontSize: 12, color: C.gray600, fontFamily: "'Lato', sans-serif", margin: 0, lineHeight: 1.5 }}>As a NY/NJ client, you may be able to complete your lab work and physical at one of our local offices. Your clinical advisor Anthony will coordinate with you after payment.</p>
+            <p style={{ fontSize: 12, color: C.gray600, fontFamily: "'Lato', sans-serif", margin: 0, lineHeight: 1.5 }}>As a New York client, you may be able to complete your lab work and physical at one of our local offices. Your clinical advisor Anthony will coordinate with you after payment.</p>
           </div>
         )}
         <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: 14, marginBottom: 20 }}>
@@ -536,7 +703,9 @@ function PaymentStep({ data, setData, onNext, onBack }) {
             <strong>Note:</strong> You will not have to pay Labcorp directly — the provided requisition form is prepaid and covered by your initial onboarding payment. In addition, all proposed therapies are not covered by health insurance. By proceeding, you acknowledge that all services are to be paid out-of-pocket per the Therapy Management Agreement you signed.
           </p>
         </div>
-        <PrimaryBtn onClick={handlePayment} disabled={processing} style={{ width: "100%", padding: "16px", fontSize: 16, textAlign: "center" }}>{processing ? "Submitting..." : "Continue to Payment →"}</PrimaryBtn>
+        <PrimaryBtn onClick={handlePayment} disabled={processing} style={{ width: "100%", padding: "16px", fontSize: 16, textAlign: "center" }}>
+          {processing ? "Processing..." : "Proceed to Secure Payment →"}
+        </PrimaryBtn>
         <div style={{ textAlign: "center", marginTop: 12 }}><span style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>🔒 You'll be redirected to our secure payment page powered by Stripe</span></div>
       </Card>
       <div style={{ display: "flex", justifyContent: "flex-start", marginTop: 28 }}><BackBtn onClick={onBack} /></div>
@@ -544,55 +713,9 @@ function PaymentStep({ data, setData, onNext, onBack }) {
   );
 }
 
-// ============ STEP 6: ID UPLOAD ONLY ============
-function IDUploadStep({ data, setData, onNext, onBack }) {
-  var u = function(k, v) { setData(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); };
-  var bypass = data.idBypassed || false;
-  var canProceed = data.idPreview || bypass;
-
-  function handleIDUpload(f) {
-    if (f.type.startsWith("image/")) {
-      var reader = new FileReader();
-      reader.onload = function(ev) { u("idPreview", ev.target.result); };
-      reader.readAsDataURL(f);
-    } else {
-      u("idPreview", f.name);
-    }
-  }
-
-  return (
-    <div style={{ maxWidth: 580, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
-      <ProgressBar step={6} />
-      <StepHeader title="Photo ID Verification" subtitle="Upload a clear photo of your government-issued ID" />
-      <Card>
-        {!bypass && (
-          <FileUpload
-            label="Driver's License / Photo ID"
-            description="Please upload the front of your driver's license or government-issued photo ID."
-            required
-            preview={data.idPreview}
-            onUpload={handleIDUpload}
-            onRemove={function() { u("idPreview", null); }}
-          />
-        )}
-        <div style={{ marginTop: bypass ? 0 : 20 }}>
-          <div onClick={function() { setData(function(p) { return Object.assign({}, p, { idBypassed: !p.idBypassed }); }); }}
-            style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 14, background: bypass ? "rgba(91,138,114,0.05)" : C.cream, border: "1.5px solid " + (bypass ? C.sage : C.gray200), borderRadius: 8, cursor: "pointer" }}>
-            <div style={{ width: 20, height: 20, borderRadius: 4, border: "2px solid " + (bypass ? C.sage : C.gray200), background: bypass ? C.sage : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-              {bypass && <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>✓</span>}
-            </div>
-            <span style={{ fontSize: 13, color: bypass ? C.charcoal : C.gray400, fontFamily: "'Lato', sans-serif", lineHeight: 1.5 }}>I have already provided my ID or will send it separately to my clinical advisor.</span>
-          </div>
-        </div>
-      </Card>
-      <NavButtons onBack={onBack} onNext={onNext} nextLabel="Complete Submission →" disabled={!canProceed} />
-    </div>
-  );
-}
-
 // ============ STEP 7: CONFIRMATION ============
 function ConfirmationStep({ data, setData }) {
-  var isNYNJ = NY_NJ.includes(data.state);
+  var isNY = NY_STATES.includes(data.state);
   var labcorpUrl = data.zip ? "https://www.labcorp.com/labs-and-appointments?zip=" + data.zip : "https://www.labcorp.com/labs-and-appointments";
   var editingEmail = data._editingEmail || false;
   var tempEmail = data._tempEmail || data.email;
@@ -650,7 +773,7 @@ function ConfirmationStep({ data, setData }) {
               <p style={{ fontSize: 13, color: "#C53030", fontFamily: "'Lato', sans-serif", fontWeight: 700, margin: 0, lineHeight: 1.5 }}>⚠️ FASTING A MINIMUM OF 12 HOURS IS RECOMMENDED TO ENSURE ACCURATE LAB RESULTS. WATER AND BLACK COFFEE/TEA ARE OK PRIOR TO DRAW.</p>
               <p style={{ fontSize: 12, color: "#C53030", fontFamily: "'Lato', sans-serif", fontWeight: 600, margin: "6px 0 0" }}>(Inform Labcorp you've fasted or they will not perform the draw)</p>
             </div>
-            {isNYNJ ? (
+            {isNY ? (
               <div style={{ background: "rgba(91,138,114,0.06)", border: "1px solid rgba(91,138,114,0.25)", borderRadius: 8, padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.sageDark, fontFamily: "'Lato', sans-serif", marginBottom: 4 }}>🏥 In-Person Option Available</div>
                 <p style={{ fontSize: 12, color: C.gray600, margin: 0, fontFamily: "'Lato', sans-serif", lineHeight: 1.5 }}>Your clinical advisor Anthony will reach out to coordinate scheduling and provide location details.</p>
@@ -685,7 +808,7 @@ function ConfirmationStep({ data, setData }) {
                 <div style={{ fontSize: 12, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, marginBottom: 12 }}>
                   <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Recent Physical</strong> — within 12 months, signed by a physician</div>
                   <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Walk-In Clinic</strong> — any clinic that offers basic wellness physicals. You can provide the physical form which you can download below.</div>
-                  {isNYNJ && <div><strong style={{ color: C.charcoal }}>✓ Local Office (NY/NJ)</strong> — Anthony will coordinate with you</div>}
+                  {isNY && <div><strong style={{ color: C.charcoal }}>✓ Local Office (New York)</strong> — Anthony will coordinate with you</div>}
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: C.sage, color: "#fff", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Lato', sans-serif" }}>
@@ -709,7 +832,7 @@ function ConfirmationStep({ data, setData }) {
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.rose, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>3</div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif", marginBottom: 6 }}>Physician Consultation</div>
-            <p style={{ fontSize: 13, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, margin: 0 }}>Once your lab results and physical exam are on file, we'll schedule a consultation with our physician. <em style={{ color: C.gray400 }}>Lab results can take 3–7 business days.</em></p>
+            <p style={{ fontSize: 13, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, margin: 0 }}>Once your lab results are in, we'll schedule a telehealth consultation with one of our physicians to review your results and discuss treatment options.</p>
           </div>
         </div>
       </Card>
@@ -747,19 +870,11 @@ export default function NDMIntake() {
   var setData = _d[1];
 
   var handleSubmit = function() {
-    // Send follow-up notification with ID upload status
-    var updatedData = Object.assign({}, data, { _finalSubmission: true });
-    fetch(SUBMIT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedData),
-    }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function() { console.log("Final submission sent"); })
-      .catch(function(e) { console.error("Final submission failed:", e); });
     setStep(7);
   };
 
   var goNext = function() {
+    // Step 6 (Payment) handles submission via handlePayment which calls onNext
     if (step === 6) { handleSubmit(); return; }
     setStep(function(s) { return s + 1; });
     try { window.scrollTo(0, 0); } catch (e) { /* noop */ }
@@ -769,6 +884,7 @@ export default function NDMIntake() {
     try { window.scrollTo(0, 0); } catch (e) { /* noop */ }
   };
 
+  // Flow: Welcome(0) → BasicInfo(1) → Symptoms(2) → MedHx(3) → IDUpload(4) → TMA(5) → Payment(6) → Confirmation(7)
   return (
     <div style={{ minHeight: "100vh", background: C.cream, padding: "32px 16px" }}>
 
@@ -781,9 +897,9 @@ export default function NDMIntake() {
         {step === 1 && <BasicInfoStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
         {step === 2 && <SymptomsStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
         {step === 3 && <MedicalHistoryStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
-        {step === 4 && <TMAStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
-        {step === 5 && <PaymentStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
-        {step === 6 && <IDUploadStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
+        {step === 4 && <IDUploadStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
+        {step === 5 && <TMAStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
+        {step === 6 && <PaymentStep data={data} setData={setData} onNext={goNext} onBack={goBack} />}
         {step === 7 && <ConfirmationStep data={data} setData={setData} />}
       </div>
 
