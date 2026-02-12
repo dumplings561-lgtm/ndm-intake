@@ -206,73 +206,23 @@ function NavButtons({ onBack, onNext, nextLabel, disabled }) {
 }
 
 function FileUpload({ label, description, preview, onUpload, onRemove, required }) {
-  var _cam = useState(false);
-  var showCamera = _cam[0];
-  var setShowCamera = _cam[1];
-  var videoRef = useRef(null);
-  var streamRef = useRef(null);
+  var cameraInputRef = useRef(null);
 
   function handleFile(e) {
     var f = e.target.files[0];
     if (!f) return;
     onUpload(f);
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
   }
 
-  function startCamera() {
-    setShowCamera(true);
-    setTimeout(function() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("Camera not supported on this browser. Please use the Upload File option instead.");
-        setShowCamera(false);
-        return;
-      }
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } })
-        .then(function(stream) {
-          streamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.setAttribute("playsinline", "true");
-            videoRef.current.play().catch(function() {});
-          }
-        })
-        .catch(function(err) {
-          console.error("Camera error:", err);
-          alert("Could not access camera. Please check permissions or use the Upload File option.");
-          setShowCamera(false);
-        });
-    }, 100);
-  }
-
-  function capturePhoto() {
-    var video = videoRef.current;
-    if (!video) return;
-    var canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    var dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-    stopCamera();
-    // Create a synthetic file-like blob for processImage compatibility
-    onUpload({ type: "image/jpeg", _dataUrl: dataUrl, name: "camera-capture.jpg" });
-  }
-
-  function stopCamera() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(function(t) { t.stop(); });
-      streamRef.current = null;
+  function openCamera() {
+    // Programmatically click a hidden input with accept=image/* to trigger the native OS camera/gallery chooser
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = "";
+      cameraInputRef.current.click();
     }
-    setShowCamera(false);
   }
-
-  // Clean up camera on unmount
-  useEffect(function() {
-    return function() {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(function(t) { t.stop(); });
-      }
-    };
-  }, []);
 
   return (
     <div>
@@ -280,22 +230,16 @@ function FileUpload({ label, description, preview, onUpload, onRemove, required 
         {label} {required && <span style={{ color: C.sage }}>*</span>}
       </label>
       {description && <p style={{ fontSize: 12, color: C.gray400, fontFamily: "'Lato', sans-serif", marginBottom: 10, lineHeight: 1.5 }}>{description}</p>}
-      {showCamera ? (
-        <div style={{ borderRadius: 10, overflow: "hidden", border: "2px solid " + C.sage, background: "#000" }}>
-          <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", display: "block", maxHeight: 300, objectFit: "cover" }} />
-          <div style={{ display: "flex", gap: 10, padding: 12, background: C.cream, justifyContent: "center" }}>
-            <button onClick={capturePhoto} style={{ padding: "10px 28px", background: C.sage, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Lato', sans-serif" }}>📷 Capture</button>
-            <button onClick={stopCamera} style={{ padding: "10px 20px", background: "transparent", color: C.gray600, border: "1px solid " + C.gray200, borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "'Lato', sans-serif" }}>Cancel</button>
-          </div>
-        </div>
-      ) : !preview ? (
+      {/* Hidden camera input — accept=image/* without capture attr lets OS show Take Photo or Choose from Library */}
+      <input ref={cameraInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFile} />
+      {!preview ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <div onClick={startCamera} style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}
+          <div onClick={openCamera} style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}
             onMouseOver={function(e) { e.currentTarget.style.borderColor = C.sage; }}
             onMouseOut={function(e) { e.currentTarget.style.borderColor = C.gray200; }}>
             <div style={{ fontSize: 26, marginBottom: 4 }}>📸</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif" }}>Take Photo</div>
-            <div style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>Open camera</div>
+            <div style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>Camera or Photo Library</div>
           </div>
           <label style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}
             onMouseOver={function(e) { e.currentTarget.style.borderColor = C.sage; }}
@@ -507,11 +451,6 @@ function IDUploadStep({ data, setData, onNext, onBack }) {
   var canProceed = data.idPreview || bypass;
 
   function handleIDUpload(f) {
-    // Handle camera-captured dataUrl (from getUserMedia)
-    if (f._dataUrl) {
-      u("idPreview", f._dataUrl);
-      return;
-    }
     if (f.type && f.type.startsWith("image/")) {
       // Process image: resize, correct orientation, compress
       processImage(f, 1200, 0.85, function(dataUrl) {
@@ -865,7 +804,8 @@ function ConfirmationStep({ data, setData }) {
             <p style={{ fontSize: 13, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, margin: "0 0 10px" }}>A completed physical exam is required to proceed with treatment. Options:</p>
             <div style={{ fontSize: 12, color: C.gray600, fontFamily: "'Lato', sans-serif", lineHeight: 1.6, marginBottom: 12 }}>
               <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Recent Physical</strong> — If you have a physical within the last 12 months signed by a physician, email it to <a href="mailto:Anthony@nightdaymed.net" style={{ color: C.sage, fontWeight: 700 }}>Anthony@nightdaymed.net</a></div>
-              <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Walk-In Clinic</strong> — Visit any clinic that offers basic wellness physicals. Your clinical advisor can provide the required form.</div>
+              <div style={{ marginBottom: 6 }}><strong style={{ color: C.charcoal }}>✓ Walk-In Clinic</strong> — Visit any clinic that offers basic wellness physicals (CVS, MedExpress, Concentra, Etc.). Below is our physical exam form which you can provide or theirs is acceptable as long as it's signed and includes all physical exam necessary fields. <em>(If prompted what the physical is for, state it is for a remote wellness plan to avoid complications.)</em></div>
+              <div style={{ marginTop: 8, marginBottom: 6 }}><a href="/NDM_Physical_Exam_Form.pdf" download style={{ display: "inline-block", padding: "10px 20px", background: C.sage, color: "#fff", borderRadius: 6, fontSize: 13, fontWeight: 700, textDecoration: "none", fontFamily: "'Lato', sans-serif" }}>📥 Download Physical Exam Form</a></div>
               {isNY && <div><strong style={{ color: C.charcoal }}>✓ Local Office (New York)</strong> — Anthony will coordinate with you to schedule at our office.</div>}
             </div>
           </div>
