@@ -206,22 +206,11 @@ function NavButtons({ onBack, onNext, nextLabel, disabled }) {
 }
 
 function FileUpload({ label, description, preview, onUpload, onRemove, required }) {
-  var cameraInputRef = useRef(null);
-
   function handleFile(e) {
     var f = e.target.files[0];
     if (!f) return;
     onUpload(f);
-    // Reset input so the same file can be re-selected
     e.target.value = "";
-  }
-
-  function openCamera() {
-    // Programmatically click a hidden input with accept=image/* to trigger the native OS camera/gallery chooser
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = "";
-      cameraInputRef.current.click();
-    }
   }
 
   return (
@@ -230,21 +219,16 @@ function FileUpload({ label, description, preview, onUpload, onRemove, required 
         {label} {required && <span style={{ color: C.sage }}>*</span>}
       </label>
       {description && <p style={{ fontSize: 12, color: C.gray400, fontFamily: "'Lato', sans-serif", marginBottom: 10, lineHeight: 1.5 }}>{description}</p>}
-      {/* Hidden camera input — accept=image/* without capture attr lets OS show Take Photo or Choose from Library */}
-      <input ref={cameraInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFile} />
       {!preview ? (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <div onClick={openCamera} style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}
-            onMouseOver={function(e) { e.currentTarget.style.borderColor = C.sage; }}
-            onMouseOut={function(e) { e.currentTarget.style.borderColor = C.gray200; }}>
+          <label style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}>
+            <input type="file" accept="image/*" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={handleFile} />
             <div style={{ fontSize: 26, marginBottom: 4 }}>📸</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif" }}>Take Photo</div>
-            <div style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>Camera or Photo Library</div>
-          </div>
-          <label style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}
-            onMouseOver={function(e) { e.currentTarget.style.borderColor = C.sage; }}
-            onMouseOut={function(e) { e.currentTarget.style.borderColor = C.gray200; }}>
-            <input type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFile} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif" }}>Take Photo / Choose Photo</div>
+            <div style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>Opens camera or photo library</div>
+          </label>
+          <label style={{ flex: "1 1 45%", minWidth: 150, padding: "18px 14px", background: C.cream, border: "2px dashed " + C.gray200, borderRadius: 10, cursor: "pointer", textAlign: "center" }}>
+            <input type="file" accept="image/*,.pdf" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={handleFile} />
             <div style={{ fontSize: 26, marginBottom: 4 }}>📁</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif" }}>Upload File</div>
             <div style={{ fontSize: 11, color: C.gray400, fontFamily: "'Lato', sans-serif" }}>JPG, PNG, or PDF</div>
