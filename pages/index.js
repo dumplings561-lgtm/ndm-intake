@@ -287,7 +287,7 @@ function ServiceStep({ data, setData, onNext, onBack }) {
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
       <ProgressBar step={1} />
-      <StepHeader title="What Brings You In?" subtitle="Select all areas you\u2019d like to address \u2014 your physician will help refine the plan" />
+      <StepHeader title="What Brings You In?" subtitle={"Select all areas you\u2019d like to address \u2014 your physician will help refine the plan"} />
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {SERVICE_OPTIONS.map(function(svc) {
@@ -391,7 +391,7 @@ function SymptomsStep({ data, setData, onNext, onBack }) {
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", animation: "ndmFadeIn 0.5s ease" }}>
       <ProgressBar step={3} />
-      <StepHeader title="Symptom Assessment" subtitle="Select all symptoms you are currently experiencing" />
+      <StepHeader title="What Are You Experiencing?" subtitle={"Select all symptoms that apply \u2014 this helps your physician build the right plan"} />
       <Card>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {symptoms.map(function(s) {
