@@ -286,20 +286,21 @@ function generateIntakePDF(d) {
   fieldRow("PCP Name", d.pcpName || "Not provided");
   fieldRow("PCP Phone", d.pcpPhone || "Not provided");
 
-  // ===== PAGE 2: THERAPY MANAGEMENT AGREEMENT =====
-  newPage();
+  // ===== TMA SECTION (continues from demographics, no forced page break) =====
+  y += 10;
+  checkSpace(80);
   drawHeader("Therapy Management Agreement", "Patient: " + fullName + "  |  DOB: " + (d.dob || ""));
 
   checkSpace(50);
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...COLORS.charcoal);
-  var preamble = 'This agreement between ' + fullName + ' ("Patient") and Night & Day Medical ("NDM") establishes guidelines and conditions for the use of hormone replacement therapy ("HRT") involving DEA "controlled" or "scheduled" medications. NDM and patient agree that these guidelines and conditions are an essential factor in maintaining a successful patient/practitioner relationship. Adverse side effects and/or physical/psychological dependence may develop after repeated use of these medications and, therefore, these agents are prescribed with caution.';
+  var preamble = 'This agreement between ' + fullName + ' ("Patient") and Night & Day Medical ("NDM") establishes guidelines and conditions for the use of hormone replacement therapy ("HRT") involving DEA "controlled" or "scheduled" medications. NDM and patient agree that these guidelines and conditions are an essential factor in maintaining a successful patient/practitioner relationship.';
   var preambleLines = doc.splitTextToSize(preamble, CONTENT_W - 16);
   doc.text(preambleLines, MARGIN + 8, y);
-  y += preambleLines.length * 11 + 10;
+  y += preambleLines.length * 10 + 8;
 
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...COLORS.charcoal);
   doc.text("The patient agrees and accepts the following conditions:", MARGIN + 8, y);
@@ -324,8 +325,8 @@ function generateIntakePDF(d) {
   ];
 
   tmaItems.forEach(function(item, idx) {
-    checkSpace(40);
-    doc.setFontSize(8);
+    checkSpace(35);
+    doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...COLORS.sage);
     doc.text((idx + 1) + ".", MARGIN + 8, y);
@@ -333,11 +334,11 @@ function generateIntakePDF(d) {
     doc.setTextColor(...COLORS.charcoal);
     var lines = doc.splitTextToSize(item, CONTENT_W - 30);
     doc.text(lines, MARGIN + 22, y);
-    y += lines.length * 10 + 6;
+    y += lines.length * 9 + 4;
   });
 
-  // SIGNATURE BLOCK (Manus canvas signature)
-  checkSpace(140);
+  // SIGNATURE BLOCK (keep on same page as last clauses when possible)
+  checkSpace(100);
   y += 10;
   divider();
 
@@ -354,8 +355,8 @@ function generateIntakePDF(d) {
     doc.text("Patient Signature:", MARGIN + 8, y);
     y += 4;
     try {
-      doc.addImage(d.signatureDataUrl, "PNG", MARGIN + 8, y, 200, 60);
-      y += 65;
+      doc.addImage(d.signatureDataUrl, "PNG", MARGIN + 8, y, 180, 50);
+      y += 55;
     } catch (e) {
       doc.setFont("helvetica", "normal");
       doc.text("[Signature image could not be embedded]", MARGIN + 8, y + 10);
