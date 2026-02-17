@@ -286,9 +286,8 @@ function generateIntakePDF(d) {
   fieldRow("PCP Name", d.pcpName || "Not provided");
   fieldRow("PCP Phone", d.pcpPhone || "Not provided");
 
-  // ===== TMA SECTION (continues from demographics, no forced page break) =====
-  y += 10;
-  checkSpace(80);
+  // ===== PAGE 2: THERAPY MANAGEMENT AGREEMENT =====
+  newPage();
   drawHeader("Therapy Management Agreement", "Patient: " + fullName + "  |  DOB: " + (d.dob || ""));
 
   checkSpace(50);
@@ -298,13 +297,13 @@ function generateIntakePDF(d) {
   var preamble = 'This agreement between ' + fullName + ' ("Patient") and Night & Day Medical ("NDM") establishes guidelines and conditions for the use of hormone replacement therapy ("HRT") involving DEA "controlled" or "scheduled" medications. NDM and patient agree that these guidelines and conditions are an essential factor in maintaining a successful patient/practitioner relationship.';
   var preambleLines = doc.splitTextToSize(preamble, CONTENT_W - 16);
   doc.text(preambleLines, MARGIN + 8, y);
-  y += preambleLines.length * 10 + 8;
+  y += preambleLines.length * 9 + 6;
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...COLORS.charcoal);
   doc.text("The patient agrees and accepts the following conditions:", MARGIN + 8, y);
-  y += 16;
+  y += 12;
 
   var tmaItems = [
     "I understand that the medications I am receiving or will receive are prescribed for me based on diagnoses derived from my submitted medical history, and the results of lab work and a physical examination. The medications are to be used exclusively for treatment of hormonal deficiencies and related medical conditions in accordance with applicable state and Federal law.",
@@ -325,21 +324,21 @@ function generateIntakePDF(d) {
   ];
 
   tmaItems.forEach(function(item, idx) {
-    checkSpace(35);
-    doc.setFontSize(7.5);
+    checkSpace(30);
+    doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...COLORS.sage);
     doc.text((idx + 1) + ".", MARGIN + 8, y);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(...COLORS.charcoal);
-    var lines = doc.splitTextToSize(item, CONTENT_W - 30);
+    var lines = doc.splitTextToSize(item, CONTENT_W - 28);
     doc.text(lines, MARGIN + 22, y);
-    y += lines.length * 9 + 4;
+    y += lines.length * 8.5 + 3;
   });
 
-  // SIGNATURE BLOCK (keep on same page as last clauses when possible)
-  checkSpace(100);
-  y += 10;
+  // SIGNATURE BLOCK
+  checkSpace(90);
+  y += 6;
   divider();
 
   doc.setFontSize(10);
