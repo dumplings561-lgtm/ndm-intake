@@ -145,20 +145,20 @@ function WelcomeStep({ onNext }) {
   return (
     <div style={{ textAlign: "center", maxWidth: 560, margin: "0 auto", animation: "ndmFadeIn 0.6s ease" }}>
       <p style={{ fontSize: 16, color: C.gray600, lineHeight: 1.7, fontFamily: "'Lato', sans-serif", maxWidth: 480, margin: "0 auto" }}>
-        Take the first step toward addressing the root cause {"\u2014"} not just the symptoms. Complete this confidential assessment and our medical team will build a personalized wellness plan around your goals.
+        Take the first step toward optimizing your health. Complete this confidential assessment and our medical team will create a personalized treatment plan for you.
       </p>
       <Card style={{ textAlign: "left", margin: "28px 0" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16, fontFamily: "'Lato', sans-serif" }}>How It Works</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16, fontFamily: "'Lato', sans-serif" }}>3 Simple Steps</div>
         {[
-          { n: "1", t: "Tell Us What\u2019s Going On", d: "Share your symptoms, health goals, and what you\u2019re looking for \u2014 takes about 5 minutes" },
-          { n: "2", t: "Comprehensive Evaluation", d: "Lab work at any Labcorp nationwide plus a physician consultation to review your full picture" },
-          { n: "3", t: "Your Personalized Plan", d: "A treatment protocol built around your biology, your goals, and ongoing support from your dedicated team" },
+          { n: "1", t: "Tell Us About Your Symptoms", d: "Quick 5-minute assessment so our medical team can understand your needs" },
+          { n: "2", t: "Get Your Labs Done", d: "We handle everything \u2014 just visit a Labcorp near you or our New York location" },
+          { n: "3", t: "Start Feeling Like Yourself Again", d: "Meet with our physician, get your personalized plan, and begin treatment" },
         ].map(function(s) {
           return (<div key={s.n} style={{ display: "flex", gap: 14, marginBottom: 14, alignItems: "flex-start" }}><div style={{ width: 32, height: 32, borderRadius: "50%", background: C.rose, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: C.white, fontWeight: 700, fontSize: 13 }}>{s.n}</div><div><div style={{ fontSize: 14, fontWeight: 700, color: C.charcoal, fontFamily: "'Lato', sans-serif" }}>{s.t}</div><div style={{ fontSize: 13, color: C.gray400, fontFamily: "'Lato', sans-serif", lineHeight: 1.4 }}>{s.d}</div></div></div>);
         })}
       </Card>
       <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 28 }}>
-        {["5-min assessment", "100% confidential", "Physician reviewed"].map(function(t) {
+        {["5-min assessment", "100% confidential", "Doctor reviewed"].map(function(t) {
           return <span key={t} style={{ padding: "6px 16px", background: "rgba(91,138,114,0.08)", border: "1px solid rgba(91,138,114,0.25)", borderRadius: 20, fontSize: 12, color: C.sageDark, fontFamily: "'Lato', sans-serif", fontWeight: 600 }}>{"\u2713"} {t}</span>;
         })}
       </div>
